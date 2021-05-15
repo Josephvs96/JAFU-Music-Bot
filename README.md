@@ -9,6 +9,15 @@ You need JAVA 13 and later in order to run Lavalink server
 * Search music on youtube directly from the discord commad
 * Play a random song
 
+## Available commands
+* ! is the prefix used to call the commands
+* !greet : a greeting with the callers name
+* !random x y : returns a random number between x and y
+* !play name : joins the specified channel for music and plays a song enterd 
+* !track : return information about the current song playing
+* !pause : pauses the music playback
+* !resume : resumes the playback
+
 ## ToDo
 * Add a queue system to play songs that memebers are adding
 * Add an integration with spotify API
