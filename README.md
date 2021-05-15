@@ -1,6 +1,7 @@
 # JAFU-Music-Bot
 
 A music bot for discord, dependent on DSharpPlus and Lavalink libraries for communicating with discord and youtube API
+
 You need JAVA 13 and later in order to run Lavalink server
 
 ## Features
