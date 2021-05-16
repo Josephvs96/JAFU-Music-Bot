@@ -44,14 +44,24 @@ namespace Music_C_.Commands
         }
 
         [Command("leave")]
-        public async Task Leave(CommandContext ctx, DiscordChannel channel)
+        public async Task Leave(CommandContext ctx)
         {
-            var conn = await GetLavaLinkConnection(ctx);
-            if (conn is not null)
+            var channel = ctx.Guild.Channels.Where(x => x.Value.Name.ToLower() == config["channel"]).FirstOrDefault().Value;
+            if (channel is null)
             {
-                await conn.DisconnectAsync();
-                await ctx.RespondAsync($"Left {channel.Name}!");
+                await ctx.RespondAsync("Cannot find a valid voice channel called Music!");
+                return;
             }
+            var lava = ctx.Client.GetLavalink();
+            if (!lava.ConnectedNodes.Any())
+            {
+                await ctx.RespondAsync("Lavalink connection is not established");
+                return;
+            }
+            var node = lava.ConnectedNodes.Values.First();
+            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+            await conn.DisconnectAsync();
+            await ctx.RespondAsync($"Left {channel.Name}!");
         }
 
         [Command("play")]
