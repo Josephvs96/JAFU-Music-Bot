@@ -21,6 +21,7 @@ You need JAVA 13 and later in order to run Lavalink server
 * !replay : replays the playlist form the first song
 * !add : add a song to the playlist
 * !repeate : enables or disables the auto replay feature
+* !playlist : lists the songs currently playing in the playlist
 
 ## ToDo
 * Add a shuffel abilty 
