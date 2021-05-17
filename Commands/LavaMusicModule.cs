@@ -3,6 +3,7 @@ using DSharpPlus.CommandsNext;
 using DSharpPlus.CommandsNext.Attributes;
 using DSharpPlus.Entities;
 using DSharpPlus.Lavalink;
+using DSharpPlus.Lavalink.EventArgs;
 using DSharpPlus.Lavalink.Entities;
 using Microsoft.Extensions.Configuration;
 using System;
@@ -10,16 +11,86 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Newtonsoft;
+using Music_C_.Data;
+using Music_C_.Models;
+using System.Text.RegularExpressions;
 
 namespace Music_C_.Commands
 {
     class LavaMusicModule : BaseCommandModule
     {
         private readonly IConfiguration config;
+        private readonly PlaylistContext db;
+        private List<PlaylistTrackModel> playlist = new();
+        private bool repeate = false;
+        private bool isPlaying = false;
 
-        public LavaMusicModule(IConfiguration config)
+        public LavaMusicModule(IConfiguration config, PlaylistContext db)
         {
             this.config = config;
+            this.db = db;
+            playlist.AddRange(db.Playlist);
+        }
+
+        private string GetNextTrack()
+        {
+            var output = playlist.Where(x => x.IsPlayed != true).FirstOrDefault();
+
+            if (output is null && repeate)
+            {
+                ResetPlaylist();
+                output = playlist.Where(x => x.IsPlayed != true).FirstOrDefault();
+            }
+
+            if (output is null && repeate == false)
+            {
+                return "";
+            }
+
+            if (playlist.IndexOf(output) == 0)
+            {
+                ResetPlaylist();
+            }
+
+            output.IsPlayed = true;
+            db.Playlist.Update(output);
+            db.SaveChanges();
+            return output.TrackName;
+        }
+
+        private void ResetPlaylist()
+        {
+            foreach (var item in db.Playlist)
+            {
+                item.IsPlayed = false;
+            }
+            db.SaveChanges();
+            UpdatePlaylist();
+        }
+
+        private void UpdatePlaylist()
+        {
+            playlist.Clear();
+            playlist.AddRange(db.Playlist);
+        }
+
+        [Command("replay")]
+        public async Task ReplayPlaylist(CommandContext ctx)
+        {
+            isPlaying = false;
+            ResetPlaylist();
+            await Play(ctx, playlist[0].TrackName);
+        }
+
+        [Command("repeat")]
+        public async Task DisableAutoReplay(CommandContext ctx)
+        {
+            repeate = !repeate;
+            if (repeate)
+                await ctx.RespondAsync("Repeat enabled!");
+            else
+                await ctx.RespondAsync("Repeat disabled!");
         }
 
         [Command("join")]
@@ -60,6 +131,7 @@ namespace Music_C_.Commands
             }
             var node = lava.ConnectedNodes.Values.First();
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+            isPlaying = false;
             await conn.DisconnectAsync();
             await ctx.RespondAsync($"Left {channel.Name}!");
         }
@@ -79,12 +151,70 @@ namespace Music_C_.Commands
             var node = lava.ConnectedNodes.Values.First();
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
 
+
             if (conn == null)
             {
                 await Join(ctx);
                 conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
             }
 
+            if (playlist.Count == 0)
+            {
+                await AddTrack(ctx, search);
+            }
+
+            var loadResult = await node.Rest.GetTracksAsync(search);
+            var track = loadResult.Tracks.First();
+            if (playlist.FindAll(x => x.TrackName == track.Title).Count == 0)
+            {
+                await AddTrack(ctx, track.Title);
+            }
+
+            if (!isPlaying)
+            {
+                isPlaying = true;
+                await TrackIsPlayed(track);
+                await conn.PlayAsync(track);
+                await ctx.RespondAsync($"Now playing {track.Title}!");
+                conn.PlaybackFinished += Conn_PlaybackFinished;
+            }
+
+        }
+
+        private async Task TrackIsPlayed(LavalinkTrack track)
+        {
+            var playlistTrack = playlist.Find(x => x.TrackName == track.Title);
+            playlistTrack.IsPlayed = true;
+            db.Playlist.Update(playlistTrack);
+            await db.SaveChangesAsync();
+            UpdatePlaylist();
+        }
+
+        private async Task Conn_PlaybackFinished(LavalinkGuildConnection sender, TrackFinishEventArgs e)
+        {
+            await Task.Delay(500);
+
+            var nextTrack = GetNextTrack();
+            if (string.IsNullOrEmpty(nextTrack))
+            {
+                return;
+            }
+            var loadResult = await sender.GetTracksAsync(nextTrack);
+            var track = loadResult.Tracks.First();
+            await sender.PlayAsync(track);
+        }
+
+        [Command("add")]
+        public async Task AddTrack(CommandContext ctx, [RemainingText] string search)
+        {
+            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null || ctx.Member.VoiceState.Channel.Name.ToLower() != config["channel"])
+            {
+                await ctx.RespondAsync($"You have to be in the music channel to use this command");
+                return;
+            }
+
+            var lava = ctx.Client.GetLavalink();
+            var node = lava.ConnectedNodes.Values.First();
             //We don't need to specify the search type here
             //since it is YouTube by default.
             var loadResult = await node.Rest.GetTracksAsync(search);
@@ -100,10 +230,49 @@ namespace Music_C_.Commands
             }
 
             var track = loadResult.Tracks.First();
+            PlaylistTrackModel trackModel = new PlaylistTrackModel
+            {
+                TrackName = track.Title,
+                TrackURL = track.Uri.AbsoluteUri,
+                AddedDate = DateTime.Now,
+                AddedBy = ctx.Member.DisplayName,
+                IsPlayed = false
+            };
 
-            await conn.PlayAsync(track);
+            await db.AddAsync(trackModel);
+            await db.SaveChangesAsync();
 
-            await ctx.RespondAsync($"Now playing {track.Title}!");
+            await ctx.RespondAsync($"{trackModel.TrackName} add to the playlist!");
+            UpdatePlaylist();
+        }
+
+        [Command("skip")]
+        public async Task SkipCurrentTrack(CommandContext ctx)
+        {
+            var nextTrack = GetNextTrack();
+            if (string.IsNullOrEmpty(nextTrack))
+            {
+                await ctx.RespondAsync("There are no more tracks in the playlist");
+                await ctx.Client.GetLavalink().ConnectedNodes.First().Value.GetGuildConnection(ctx.Member.VoiceState.Guild).StopAsync();
+            }
+            else
+            {
+                isPlaying = false;
+                await Stop(ctx);
+                await Play(ctx, nextTrack);
+            }
+        }
+
+        [Command("playlist")]
+        public async Task GetPlaylist(CommandContext ctx)
+        {
+            UpdatePlaylist();
+            string tracks = "";
+            foreach (var item in playlist)
+            {
+                tracks += $"{item.TrackName}\n";
+            }
+            await ctx.RespondAsync(tracks);
         }
 
         [Command("playrandom")]
@@ -185,16 +354,16 @@ namespace Music_C_.Commands
             var conn = await GetLavaLinkConnection(ctx);
             if (conn is not null)
                 await conn.ResumeAsync();
-
         }
 
         [Command("stop")]
         public async Task Stop(CommandContext ctx)
         {
+            isPlaying = false;
             var conn = await GetLavaLinkConnection(ctx);
+            conn.PlaybackFinished -= Conn_PlaybackFinished;
             if (conn is not null)
                 await conn.StopAsync();
-
         }
 
 

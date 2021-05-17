@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection;
 using DSharpPlus.VoiceNext;
 using DSharpPlus.Net;
 using DSharpPlus.Lavalink;
+using Music_C_.Data;
 
 namespace Music_C_
 {
@@ -32,6 +33,7 @@ namespace Music_C_
             var services = new ServiceCollection()
                 .AddSingleton<Random>()
                 .AddSingleton<IConfiguration>(configuration)
+                .AddDbContext<PlaylistContext>()
                 .BuildServiceProvider();
 
             var discord = new DiscordClient(new DiscordConfiguration()
