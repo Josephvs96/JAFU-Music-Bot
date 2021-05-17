@@ -22,15 +22,24 @@ namespace Music_C_.Commands
     {
         private readonly IConfiguration config;
         private readonly PlaylistContext db;
+        private readonly LavalinkExtension lavalink;
         private List<PlaylistTrackModel> playlist = new();
         private bool repeate = false;
         private bool isPlaying = false;
+        private LavalinkGuildConnection player;
 
-        public LavaMusicModule(IConfiguration config, PlaylistContext db)
+        public LavaMusicModule(IConfiguration config, PlaylistContext db, DiscordClient discord)
         {
             this.config = config;
             this.db = db;
             playlist.AddRange(db.Playlist);
+            lavalink = discord.GetLavalink();
+
+        }
+
+        private void CreatePlayer(CommandContext ctx)
+        {
+            player = lavalink.GetGuildConnection(ctx.Member.Guild);
         }
 
         private string GetNextTrack()
@@ -96,14 +105,13 @@ namespace Music_C_.Commands
         [Command("join")]
         public async Task Join(CommandContext ctx)
         {
-            var lava = ctx.Client.GetLavalink();
-            if (!lava.ConnectedNodes.Any())
+
+            if (!lavalink.ConnectedNodes.Any())
             {
                 await ctx.RespondAsync("Lavalink connection is not established");
                 return;
             }
-
-            var node = lava.ConnectedNodes.Values.First();
+            var node = lavalink.ConnectedNodes.Values.First();
             var channel = ctx.Guild.Channels.Where(x => x.Value.Name.ToLower() == config["channel"]).FirstOrDefault().Value;
             if (channel is null)
             {
@@ -112,6 +120,7 @@ namespace Music_C_.Commands
             }
 
             await node.ConnectAsync(channel);
+            CreatePlayer(ctx);
         }
 
         [Command("leave")]
@@ -133,6 +142,7 @@ namespace Music_C_.Commands
             var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
             isPlaying = false;
             await conn.DisconnectAsync();
+            player = null;
             await ctx.RespondAsync($"Left {channel.Name}!");
         }
 
@@ -174,7 +184,7 @@ namespace Music_C_.Commands
             {
                 isPlaying = true;
                 await TrackIsPlayed(track);
-                await conn.PlayAsync(track);
+                await player.PlayAsync(track);
                 await ctx.RespondAsync($"Now playing {track.Title}!");
                 conn.PlaybackFinished += Conn_PlaybackFinished;
             }

@@ -34,14 +34,16 @@ namespace Music_C_
                 .AddSingleton<Random>()
                 .AddSingleton<IConfiguration>(configuration)
                 .AddDbContext<PlaylistContext>()
+                .AddSingleton<DiscordClient>()
+                .AddSingleton(new DiscordConfiguration()
+                {
+                    Token = configuration["token"],
+                    TokenType = TokenType.Bot,
+                    Intents = DiscordIntents.AllUnprivileged,
+                })
                 .BuildServiceProvider();
 
-            var discord = new DiscordClient(new DiscordConfiguration()
-            {
-                Token = configuration["token"],
-                TokenType = TokenType.Bot,
-                Intents = DiscordIntents.AllUnprivileged,
-            });
+            var discord = services.GetRequiredService<DiscordClient>();
 
             var endpoint = new ConnectionEndpoint
             {
@@ -56,7 +58,6 @@ namespace Music_C_
                 SocketEndpoint = endpoint
             };
 
-            discord.UseVoiceNext();
             var lavalink = discord.UseLavalink();
 
             var commands = discord.UseCommandsNext(new CommandsNextConfiguration()
