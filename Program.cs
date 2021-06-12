@@ -12,11 +12,15 @@ using DSharpPlus.VoiceNext;
 using DSharpPlus.Net;
 using DSharpPlus.Lavalink;
 using Music_C_.Data;
+using Music_C_.Services;
+using System.Linq;
 
 namespace Music_C_
 {
     class Program
     {
+        public static ServiceProvider Services { get; private set; }
+
         static void Main(string[] args)
         {
             MainAsync().GetAwaiter().GetResult();
@@ -24,54 +28,51 @@ namespace Music_C_
 
         static async Task MainAsync()
         {
-            var builder = new ConfigurationBuilder()
-                   .SetBasePath(Directory.GetCurrentDirectory())
-                   .AddJsonFile("settings.json");
 
-            var configuration = builder.Build();
+            ConfigService configService = new();
 
-            var services = new ServiceCollection()
+            Services = new ServiceCollection()
                 .AddSingleton<Random>()
-                .AddSingleton<IConfiguration>(configuration)
-                .AddDbContext<PlaylistContext>()
+                .AddSingleton(configService)
+                .AddDbContext<BotDbContext>()
+                .AddSingleton<PlaylistDataAccess>()
                 .AddSingleton<DiscordClient>()
+                .AddScoped<WebCalService>()
                 .AddSingleton(new DiscordConfiguration()
                 {
-                    Token = configuration["token"],
+                    Token = configService.Token,
                     TokenType = TokenType.Bot,
                     Intents = DiscordIntents.AllUnprivileged,
                 })
+                .AddSingleton<DiscordHelper>()
+                .AddSingleton<MusicService>()
                 .BuildServiceProvider();
 
-            var discord = services.GetRequiredService<DiscordClient>();
-
-            var endpoint = new ConnectionEndpoint
-            {
-                Hostname = "127.0.0.1", // From your server configuration.
-                Port = 2333 // From your server configuration
-            };
-
-            var lavalinkConfig = new LavalinkConfiguration
-            {
-                Password = "youshallnotpass", // From your server configuration.
-                RestEndpoint = endpoint,
-                SocketEndpoint = endpoint
-            };
+            var discord = Services.GetRequiredService<DiscordClient>();
 
             var lavalink = discord.UseLavalink();
 
             var commands = discord.UseCommandsNext(new CommandsNextConfiguration()
             {
-                StringPrefixes = new[] { "!" },
-                Services = services
+                StringPrefixes = new[] { configService.Prefix },
+                Services = Services
             });
 
             commands.RegisterCommands<TextModule>();
-            commands.RegisterCommands<LavaMusicModule>();
+            commands.RegisterCommands<MusicModule>();
 
             await discord.ConnectAsync();
-            await lavalink.ConnectAsync(lavalinkConfig);
+            await lavalink.ConnectAsync(configService.LavaConfig);
+
+            discord.Ready += Discord_Ready;
+
             await Task.Delay(-1);
+        }
+
+        private static async Task Discord_Ready(DiscordClient sender, DSharpPlus.EventArgs.ReadyEventArgs e)
+        {
+            var discordHelper = Services.GetRequiredService<DiscordHelper>();
+            await discordHelper.GetGuild(sender);
         }
     }
 }

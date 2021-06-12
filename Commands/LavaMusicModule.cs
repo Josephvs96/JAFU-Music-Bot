@@ -15,31 +15,33 @@ using Newtonsoft;
 using Music_C_.Data;
 using Music_C_.Models;
 using System.Text.RegularExpressions;
+using Music_C_.Services;
 
 namespace Music_C_.Commands
 {
     class LavaMusicModule : BaseCommandModule
     {
-        private readonly IConfiguration config;
-        private readonly PlaylistContext db;
+        private readonly ConfigService config;
+        private readonly BotDbContext db;
+        private readonly DiscordHelper helper;
         private readonly LavalinkExtension lavalink;
         private List<PlaylistTrackModel> playlist = new();
         private bool repeate = false;
         private bool isPlaying = false;
         private LavalinkGuildConnection player;
 
-        public LavaMusicModule(IConfiguration config, PlaylistContext db, DiscordClient discord)
+        public LavaMusicModule(ConfigService config, BotDbContext db, DiscordClient discord, DiscordHelper helper)
         {
             this.config = config;
             this.db = db;
+            this.helper = helper;
             playlist.AddRange(db.Playlist);
             lavalink = discord.GetLavalink();
-
         }
 
         private void CreatePlayer(CommandContext ctx)
         {
-            player = lavalink.GetGuildConnection(ctx.Member.Guild);
+            player = lavalink.GetGuildConnection(helper.DiscordGuild);
         }
 
         private string GetNextTrack()
@@ -112,7 +114,7 @@ namespace Music_C_.Commands
                 return;
             }
             var node = lavalink.ConnectedNodes.Values.First();
-            var channel = ctx.Guild.Channels.Where(x => x.Value.Name.ToLower() == config["channel"]).FirstOrDefault().Value;
+            var channel = ctx.Guild.Channels.Where(x => x.Value.Name.ToLower() == config.Channel).FirstOrDefault().Value;
             if (channel is null)
             {
                 await ctx.RespondAsync("Cannot find a valid voice channel called Music!");
@@ -126,7 +128,7 @@ namespace Music_C_.Commands
         [Command("leave")]
         public async Task Leave(CommandContext ctx)
         {
-            var channel = ctx.Guild.Channels.Where(x => x.Value.Name.ToLower() == config["channel"]).FirstOrDefault().Value;
+            var channel = ctx.Guild.Channels.Where(x => x.Value.Name.ToLower() == config.Channel).FirstOrDefault().Value;
             if (channel is null)
             {
                 await ctx.RespondAsync("Cannot find a valid voice channel called Music!");
@@ -139,11 +141,11 @@ namespace Music_C_.Commands
                 return;
             }
             var node = lava.ConnectedNodes.Values.First();
-            var conn = node.GetGuildConnection(ctx.Member.VoiceState.Guild);
+            var conn = node.GetGuildConnection(helper.DiscordGuild);
             isPlaying = false;
             await conn.DisconnectAsync();
             player = null;
-            await ctx.RespondAsync($"Left {channel.Name}!");
+            await ctx.RespondAsync($"Left {helper.DiscordChannel.Name}!");
         }
 
         [Command("play")]
@@ -151,7 +153,7 @@ namespace Music_C_.Commands
         {
             //Important to check the voice state itself first, 
             //as it may throw a NullReferenceException if they don't have a voice state.
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null || ctx.Member.VoiceState.Channel.Name.ToLower() != config["channel"])
+            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null || ctx.Member.VoiceState.Channel.Name.ToLower() != config.Channel)
             {
                 await ctx.RespondAsync($"You have to be in the music channel to use this command");
                 return;
@@ -217,7 +219,7 @@ namespace Music_C_.Commands
         [Command("add")]
         public async Task AddTrack(CommandContext ctx, [RemainingText] string search)
         {
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null || ctx.Member.VoiceState.Channel.Name.ToLower() != config["channel"])
+            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null || ctx.Member.VoiceState.Channel.Name.ToLower() != config.Channel)
             {
                 await ctx.RespondAsync($"You have to be in the music channel to use this command");
                 return;
@@ -296,7 +298,7 @@ namespace Music_C_.Commands
 
             //Important to check the voice state itself first, 
             //as it may throw a NullReferenceException if they don't have a voice state.
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null || ctx.Member.VoiceState.Channel.Name.ToLower() != config["channel"])
+            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel == null || ctx.Member.VoiceState.Channel.Name.ToLower() != config.Channel)
             {
                 await ctx.RespondAsync($"You have to be in the music channel to use this command");
                 return;
@@ -382,9 +384,9 @@ namespace Music_C_.Commands
 
         private async Task<LavalinkGuildConnection> GetLavaLinkConnection(CommandContext ctx)
         {
-            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel.Name.ToLower() != config["channel"])
+            if (ctx.Member.VoiceState == null || ctx.Member.VoiceState.Channel.Name.ToLower() != config.Channel)
             {
-                await ctx.RespondAsync($"You have to be in {config["channel"]} channel in order to use this command");
+                await ctx.RespondAsync($"You have to be in {config.Channel} channel in order to use this command");
                 return null;
             }
 

@@ -7,7 +7,7 @@ using Music_C_.Data;
 
 namespace Music_C_.Migrations
 {
-    [DbContext(typeof(PlaylistContext))]
+    [DbContext(typeof(BotDbContext))]
     partial class PlaylistContextModelSnapshot : ModelSnapshot
     {
         protected override void BuildModel(ModelBuilder modelBuilder)

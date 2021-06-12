@@ -8,7 +8,7 @@ using Music_C_.Data;
 
 namespace Music_C_.Migrations
 {
-    [DbContext(typeof(PlaylistContext))]
+    [DbContext(typeof(BotDbContext))]
     [Migration("20210516124841_addIsPlayed")]
     partial class addIsPlayed
     {

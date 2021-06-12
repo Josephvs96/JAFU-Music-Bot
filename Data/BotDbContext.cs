@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace Music_C_.Data
 {
-    public class PlaylistContext : DbContext
+    public class BotDbContext : DbContext
     {
         public DbSet<PlaylistTrackModel> Playlist { get; set; }
 
