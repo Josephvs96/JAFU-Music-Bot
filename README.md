@@ -12,6 +12,7 @@ You need JAVA 13 and later in order to run Lavalink server
 
 ## Available commands
 * ! is the prefix used to call the commands
+* !calender : Fetches the calender events from the webcal api of ItsLearning and display the upcoming events 
 * !greet : a greeting with the callers name
 * !random x y : returns a random number between x and y
 * !play name : joins the specified channel for music and checks if the song is in the playlist, if not it adds it the the end. If there is no song playing then it plays the specific song.  
