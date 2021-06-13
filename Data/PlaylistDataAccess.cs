@@ -28,9 +28,10 @@ namespace Music_C_.Data
 
         public async Task<bool> RemoveTrack(PlaylistTrackModel track)
         {
-            if (_db.Playlist.Contains(track))
+            var dbTrack = _db.Playlist.Where(x => x.TrackName == track.TrackName).FirstOrDefault();
+            if (dbTrack is not null)
             {
-                _db.Playlist.Remove(track);
+                _db.Playlist.Remove(dbTrack);
                 await _db.SaveChangesAsync();
                 return true;
             }
@@ -39,10 +40,11 @@ namespace Music_C_.Data
 
         public async Task<bool> UpdateToPlayedStatus(PlaylistTrackModel track)
         {
-            if (_db.Playlist.Contains(track))
+            var dbTrack = _db.Playlist.Where(x => x.TrackName == track.TrackName).FirstOrDefault();
+            if (dbTrack is not null)
             {
-                track.IsPlayed = true;
-                _db.Update(track);
+                dbTrack.IsPlayed = true;
+                _db.Update(dbTrack);
                 await _db.SaveChangesAsync();
                 return true;
             }
@@ -51,10 +53,11 @@ namespace Music_C_.Data
 
         public async Task<bool> UpdateToNotPlayedStatus(PlaylistTrackModel track)
         {
-            if (_db.Playlist.Contains(track))
+            var dbTrack = _db.Playlist.Where(x => x.TrackName == track.TrackName).FirstOrDefault();
+            if (dbTrack is not null)
             {
-                track.IsPlayed = false;
-                _db.Update(track);
+                dbTrack.IsPlayed = false;
+                _db.Update(dbTrack);
                 await _db.SaveChangesAsync();
                 return true;
             }

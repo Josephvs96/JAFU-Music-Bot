@@ -1,17 +1,13 @@
 ﻿using DSharpPlus;
 using DSharpPlus.Lavalink;
-using DSharpPlus.Lavalink.Entities;
 using DSharpPlus.Lavalink.EventArgs;
-using DSharpPlus.Exceptions;
 using Music_C_.Data;
+using Music_C_.Exceptions;
 using Music_C_.Helpers;
 using Music_C_.Models;
-using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Threading.Tasks;
-using Music_C_.Exceptions;
 
 namespace Music_C_.Services
 {
@@ -26,7 +22,8 @@ namespace Music_C_.Services
         private readonly LavalinkExtension lavalink;
 
         private List<PlaylistTrackModel> playlist;
-        private bool isPlaying;
+        private bool isPlaying = false;
+        private bool repeate = false;
         private LavalinkNodeConnection node;
         public LavalinkGuildConnection Player { get; private set; }
         #endregion
@@ -63,7 +60,6 @@ namespace Music_C_.Services
             Player = node.GetGuildConnection(helper.DiscordGuild);
 
             Player.PlaybackFinished += Player_PlaybackFinished;
-
         }
 
         public async Task<string> JoinChannel()
@@ -116,14 +112,14 @@ namespace Music_C_.Services
 
         public async Task<string> Play(string search)
         {
+            string output = "";
             if (Player is null || !Player.IsConnected)
             {
                 await JoinChannel();
             }
 
-            var loadResult = await node.Rest.GetTracksAsync(search);
+            LavalinkTrack track = await GetLavaLinkTrack(search);
 
-            var track = loadResult.Tracks.First();
             if (track is null)
             {
                 return $"Can't find any resaults for {search}";
@@ -133,21 +129,79 @@ namespace Music_C_.Services
             bool isPlaylistContainTrack = playlist.FindAll(x => x.TrackName == track.Title).Count == 0;
             if (isPlaylistEmpty || isPlaylistContainTrack)
             {
-                await AddTrackToPlayList(track);
+                output += await AddTrackToPlayList(track) + "\n";
             }
 
             if (!isPlaying)
             {
                 isPlaying = true;
-                await TrackIsPlayed(track);
-                await Player.PlayAsync(track);
-                return ($"Now playing {track.Title}!");
+                await PlayTrack(track);
             }
             else
             {
                 //TODO: Move the requested track to the end of the playlist
             }
-            return string.Empty;
+            return output;
+        }
+
+        private async Task PlayTrack(LavalinkTrack trackToPlay)
+        {
+            await Player.PlayAsync(trackToPlay);
+            await TrackIsPlayed(trackToPlay);
+            await client.UpdateStatusAsync(helper.GetActivity(trackToPlay.Title));
+        }
+
+        public async Task StopPlaying()
+        {
+            isPlaying = false;
+            Player.PlaybackFinished -= Player_PlaybackFinished;
+            if (Player is not null)
+                await Player.StopAsync();
+        }
+
+        public async Task PausePlayback()
+        {
+            if (Player is not null)
+            {
+                await Player.PauseAsync();
+            }
+        }
+
+        public async Task ResumePlayback()
+        {
+            if (Player is not null)
+            {
+                await Player.ResumeAsync();
+            }
+        }
+
+        public async Task SkipCurrentTrack()
+        {
+            if (Player is not null && Player.CurrentState.CurrentTrack is not null)
+            {
+                await Player.SeekAsync(Player.CurrentState.CurrentTrack.Length);
+            }
+        }
+
+        public async Task ReplayPlaylist()
+        {
+            if (Player is null)
+            {
+                await JoinChannel();
+            }
+            await SkipCurrentTrack();
+            await ResetPlaylist();
+            var track = await GetNextTrackToPlay();
+            await PlayTrack(track);
+        }
+
+        public string ToggleAutoReplay()
+        {
+            repeate = !repeate;
+            if (repeate)
+                return "Repeat enabled!";
+            else
+                return "Repeat disabled!";
         }
 
         public string GetCurrentTrackInfo()
@@ -178,6 +232,65 @@ namespace Music_C_.Services
             return tracks;
         }
 
+        public async Task<string> RemoveFromPlaylist(string search)
+        {
+            if (Player is null)
+                await JoinChannel();
+
+            if (playlist.Count <= 0)
+            {
+                return "The playlist doesn't conatin any tracks to be removed";
+            }
+
+            var lavalinkTrack = await GetLavaLinkTrack(search);
+            if (lavalinkTrack is not null)
+            {
+                var playlistTrack = playlist.Where(x => x.TrackName == lavalinkTrack.Title).FirstOrDefault();
+                if (playlistTrack is not null)
+                {
+                    await db.RemoveTrack(playlistTrack);
+                    return $"{playlistTrack.TrackName} removed form the playlist!";
+                }
+            }
+            return "Can't find the required track to remove!";
+
+        }
+
+        private async Task<LavalinkTrack> GetNextTrackToPlay()
+        {
+            var trackFromPlaylist = playlist.Where(x => x.IsPlayed != true).FirstOrDefault();
+
+            if (trackFromPlaylist is null && repeate)
+            {
+                await ResetPlaylist();
+                trackFromPlaylist = playlist.Where(x => x.IsPlayed != true).FirstOrDefault();
+            }
+
+            if (trackFromPlaylist is null && repeate == false)
+            {
+                return null;
+            }
+
+            if (playlist.IndexOf(trackFromPlaylist) == 0)
+            {
+                await ResetPlaylist();
+            }
+
+            var trackResults = await node.Rest.GetTracksAsync(trackFromPlaylist.TrackURL);
+            var trackToBePlayed = trackResults.Tracks.First();
+
+            return trackToBePlayed;
+        }
+
+        private async Task ResetPlaylist()
+        {
+            foreach (var track in playlist)
+            {
+                await db.UpdateToNotPlayedStatus(track);
+            }
+            await UpdatePlaylist();
+        }
+
         private async Task UpdatePlaylist()
         {
             playlist.Clear();
@@ -190,15 +303,33 @@ namespace Music_C_.Services
             await db.UpdateToPlayedStatus(playlistTrack);
         }
 
-        private async Task AddTrackToPlayList(LavalinkTrack track)
+        private async Task<string> AddTrackToPlayList(LavalinkTrack track)
         {
             var playlistTrack = TrackConverter.ConvertToPlaylistTrack(track);
             await db.AddTrack(playlistTrack);
+            return $"Added {track.Title} to the playlist";
         }
 
-        private Task Player_PlaybackFinished(LavalinkGuildConnection sender, TrackFinishEventArgs e)
+        private async Task<LavalinkTrack> GetLavaLinkTrack(string search)
         {
-            throw new NotImplementedException();
+            var loadResult = await node.Rest.GetTracksAsync(search);
+            var track = loadResult.Tracks.First();
+            return track;
+        }
+
+        private async Task Player_PlaybackFinished(LavalinkGuildConnection sender, TrackFinishEventArgs e)
+        {
+            await Task.Delay(500);
+
+            var trackToPlay = await GetNextTrackToPlay();
+            if (trackToPlay is not null)
+            {
+                await PlayTrack(trackToPlay);
+            }
+            else
+            {
+                await client.UpdateStatusAsync(helper.GetActivity($"Nothing, Just chilling 😁"));
+            }
         }
     }
 }

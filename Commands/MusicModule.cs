@@ -31,6 +31,9 @@ namespace Music_C_.Commands
         [Command("leave")]
         public async Task Leave(CommandContext ctx)
         {
+            if (!await CheckMemberIsConnectedToVoiceChannel(ctx))
+                return;
+
             var respons = await music.LeaveChannel();
 
             if (!string.IsNullOrEmpty(respons))
@@ -43,44 +46,56 @@ namespace Music_C_.Commands
             if (!await CheckMemberIsConnectedToVoiceChannel(ctx))
                 return;
 
-            await ctx.RespondAsync(await music.Play(search));
+            var respons = await music.Play(search);
+            await ctx.RespondAsync(respons);
         }
 
         [Command("stop")]
         public async Task Stop(CommandContext ctx)
         {
-
+            if (!await CheckMemberIsConnectedToVoiceChannel(ctx))
+                return;
+            await music.StopPlaying();
         }
 
         [Command("resume")]
         public async Task Resume(CommandContext ctx)
         {
-
+            if (!await CheckMemberIsConnectedToVoiceChannel(ctx))
+                return;
+            await music.ResumePlayback();
         }
 
         [Command("pause")]
         public async Task Pause(CommandContext ctx)
         {
-
-
+            if (!await CheckMemberIsConnectedToVoiceChannel(ctx))
+                return;
+            await music.PausePlayback();
         }
 
         [Command("skip")]
         public async Task SkipCurrentTrack(CommandContext ctx)
         {
-
+            if (!await CheckMemberIsConnectedToVoiceChannel(ctx))
+                return;
+            await music.SkipCurrentTrack();
         }
 
         [Command("replay")]
         public async Task ReplayPlaylist(CommandContext ctx)
         {
-
+            if (!await CheckMemberIsConnectedToVoiceChannel(ctx))
+                return;
+            await music.ReplayPlaylist();
         }
 
         [Command("repeat")]
         public async Task DisableAutoReplay(CommandContext ctx)
         {
-
+            if (!await CheckMemberIsConnectedToVoiceChannel(ctx))
+                return;
+            await ctx.RespondAsync(music.ToggleAutoReplay());
         }
 
         [Command("playlist")]
@@ -90,16 +105,13 @@ namespace Music_C_.Commands
             await ctx.RespondAsync(playlist);
         }
 
-        [Command("add")]
-        public async Task AddTrack(CommandContext ctx, [RemainingText] string search)
-        {
-
-        }
-
         [Command("remove")]
         public async Task RemoveTrack(CommandContext ctx, [RemainingText] string search)
         {
-
+            if (!await CheckMemberIsConnectedToVoiceChannel(ctx))
+                return;
+            var response = await music.RemoveFromPlaylist(search);
+            await ctx.RespondAsync(response);
         }
 
         [Command("playrandom")]

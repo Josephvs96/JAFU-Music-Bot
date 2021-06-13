@@ -15,7 +15,6 @@ namespace Music_C_.Helpers
 
         public DiscordGuild DiscordGuild { get; private set; }
         public DiscordChannel DiscordChannel { get; private set; }
-
         public DiscordHelper(ConfigService config)
         {
             this.config = config;
@@ -33,5 +32,8 @@ namespace Music_C_.Helpers
             if (DiscordGuild != null && DiscordGuild.Channels.Count != 0)
                 DiscordChannel = DiscordGuild.Channels.Values.Where(x => x.Name.ToLower() == config.Channel).First();
         }
+
+        public DiscordActivity GetActivity(string message) => new DiscordActivity(message);
+
     }
 }

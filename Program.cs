@@ -76,6 +76,7 @@ namespace Music_C_
         {
             var discordHelper = Services.GetRequiredService<DiscordHelper>();
             await discordHelper.GetGuild(sender);
+            await sender.UpdateStatusAsync(discordHelper.GetActivity($"Nothing, Just chilling 😁"));
         }
     }
 }
