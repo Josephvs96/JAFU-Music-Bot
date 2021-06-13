@@ -16,6 +16,7 @@ using Music_C_.Data;
 using Music_C_.Models;
 using System.Text.RegularExpressions;
 using Music_C_.Services;
+using Music_C_.Helpers;
 
 namespace Music_C_.Commands
 {
@@ -107,7 +108,6 @@ namespace Music_C_.Commands
         [Command("join")]
         public async Task Join(CommandContext ctx)
         {
-
             if (!lavalink.ConnectedNodes.Any())
             {
                 await ctx.RespondAsync("Lavalink connection is not established");

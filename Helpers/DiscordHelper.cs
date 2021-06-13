@@ -1,12 +1,13 @@
 ﻿using DSharpPlus;
 using DSharpPlus.Entities;
+using Music_C_.Services;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Music_C_.Services
+namespace Music_C_.Helpers
 {
     public class DiscordHelper
     {

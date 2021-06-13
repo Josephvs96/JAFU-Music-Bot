@@ -14,6 +14,8 @@ using DSharpPlus.Lavalink;
 using Music_C_.Data;
 using Music_C_.Services;
 using System.Linq;
+using Music_C_.Helpers;
+using System.Threading;
 
 namespace Music_C_
 {
@@ -62,9 +64,10 @@ namespace Music_C_
             commands.RegisterCommands<MusicModule>();
 
             await discord.ConnectAsync();
+            discord.Ready += Discord_Ready;
+
             await lavalink.ConnectAsync(configService.LavaConfig);
 
-            discord.Ready += Discord_Ready;
 
             await Task.Delay(-1);
         }

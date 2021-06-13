@@ -1,5 +1,6 @@
 ﻿using DSharpPlus.Entities;
 using DSharpPlus.Lavalink;
+using Microsoft.EntityFrameworkCore;
 using Music_C_.Models;
 using System;
 using System.Collections.Generic;
@@ -11,47 +12,58 @@ namespace Music_C_.Data
 {
     public class PlaylistDataAccess
     {
-        private readonly BotDbContext db;
-
-        public List<PlaylistTrackModel> Playlist { get; set; } = new();
+        private readonly BotDbContext _db;
 
         public PlaylistDataAccess(BotDbContext db)
         {
-            this.db = db;
-            Playlist.AddRange(db.Playlist);
+            _db = db;
         }
 
-        public async Task AddTrack(LavalinkTrack track, DiscordMember member)
+        public async Task<bool> AddTrack(PlaylistTrackModel track)
         {
-            PlaylistTrackModel trackModel = new()
-            {
-                TrackName = track.Title,
-                AddedDate = DateTime.Now,
-                IsPlayed = false,
-                TrackURL = track.Uri.AbsoluteUri,
-                AddedBy = member.DisplayName
-            };
-
-            await db.AddAsync(trackModel);
-            await db.SaveChangesAsync();
-            UpdatePlaylist();
+            await _db.AddAsync(track);
+            await _db.SaveChangesAsync();
+            return true;
         }
 
-        public async Task RemoveTrack(LavalinkTrack track)
+        public async Task<bool> RemoveTrack(PlaylistTrackModel track)
         {
-            PlaylistTrackModel trackModel = Playlist.Where(x => x.TrackName == track.Title).FirstOrDefault();
-            if (trackModel is not null)
+            if (_db.Playlist.Contains(track))
             {
-                db.Playlist.Remove(trackModel);
-                await db.SaveChangesAsync();
-                UpdatePlaylist();
+                _db.Playlist.Remove(track);
+                await _db.SaveChangesAsync();
+                return true;
             }
+            return false;
         }
 
-        public void UpdatePlaylist()
+        public async Task<bool> UpdateToPlayedStatus(PlaylistTrackModel track)
         {
-            Playlist.Clear();
-            Playlist.AddRange(db.Playlist);
+            if (_db.Playlist.Contains(track))
+            {
+                track.IsPlayed = true;
+                _db.Update(track);
+                await _db.SaveChangesAsync();
+                return true;
+            }
+            return false;
+        }
+
+        public async Task<bool> UpdateToNotPlayedStatus(PlaylistTrackModel track)
+        {
+            if (_db.Playlist.Contains(track))
+            {
+                track.IsPlayed = false;
+                _db.Update(track);
+                await _db.SaveChangesAsync();
+                return true;
+            }
+            return false;
+        }
+
+        public async Task<List<PlaylistTrackModel>> GetAllPlaylistTracks()
+        {
+            return await _db.Playlist.ToListAsync();
         }
     }
 }
